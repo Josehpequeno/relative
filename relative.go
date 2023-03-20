@@ -8,41 +8,59 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type (
+	errMsg error
+)
+
 type model struct {
-	command       string
 	currentFolder string
 	commandOut    []string
+	command       textinput.Model
+	err           error
 }
 
 func initialModel() model {
+	ti := textinput.New()
+	ti.Placeholder = "ls"
+	ti.Focus()
+	ti.CharLimit = 156
+	ti.Width = 20
+
 	return model{
-		command:       "",
+		command:       ti,
 		currentFolder: "/",
 		commandOut:    make([]string, 0),
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		switch msg.Type {
+		case tea.KeyCtrlC, tea.KeyEsc, tea.KeyCtrlQ:
 			return m, tea.Quit
-		case "enter", " ":
-			fmt.Println(m.command)
-			m.command = ""
-		default:
-			m.command += msg.String()
+		case tea.KeyEnter:
+			fmt.Println(m.command.View())
 		}
+	case errMsg:
+		m.err = msg
+		return m, nil
+		// default:
+		// 	m.command += msg.String()
 	}
-	return m, nil
+
+	m.command, cmd = m.command.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
@@ -55,9 +73,10 @@ func (m model) View() string {
 	if err != nil {
 		log.Fatal(err)
 	}
+	s += "\nPress Ctrl+q to quit.\n"
 	folderLocation := "Folder location current: " + out.String()
-	s += fmt.Sprintf("\n\n%s\n", folderLocation)
-	s += "\nPress q to quit.\n"
+	s += fmt.Sprintf("\n\n%s\n%s", folderLocation, m.command.View())
+
 	return s
 }
 
