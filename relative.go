@@ -3,98 +3,117 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-type (
-	errMsg error
+const listHeight = 14
+
+var (
+	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
+	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
-type model struct {
-	currentFolder string
-	commandOut    []string
-	command       textinput.Model
-	commandString string
-	err           error
+type item string
+
+func (i item) FilterValue() string { return "" }
+
+type itemDelegate struct{}
+
+func (d itemDelegate) Height() int                               { return 1 }
+func (d itemDelegate) Spacing() int                              { return 0 }
+func (d itemDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
+func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(item)
+	if !ok {
+		return
+	}
+
+	// str := fmt.Sprintf("%d. %s", index+1, i)
+	str := fmt.Sprintf("%v", i) // items
+
+	fn := itemStyle.Render
+	if index == m.Index() {
+		fn = func(s string) string {
+			return selectedItemStyle.Render("> " + s)
+		}
+	}
+
+	fmt.Fprint(w, fn(str))
 }
 
-func initialModel() model {
-	ti := textinput.New()
-	ti.Placeholder = "ls"
-	ti.Focus()
-	ti.CharLimit = 156
-	ti.Width = 20
-
-	return model{
-		command:       ti,
-		commandString: "",
-		currentFolder: "/",
-		commandOut:    make([]string, 0),
-	}
+type model struct {
+	list     list.Model
+	choice   string
+	quitting bool
 }
 
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
-}
-
-func ExecCommand(command string) {
-	if command != "" {
-		println("command", command)
-		cmd := exec.Command(command)
-		cmd.Stdin = strings.NewReader("")
-		var out bytes.Buffer
-		cmd.Stdout = &out
-		err := cmd.Run()
-		if err != nil {
-			fmt.Println(command, "command not found")
-		} else {
-			fmt.Println("command out:\n", out.String())
-		}
-	}
+	return nil
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc, tea.KeyCtrlQ:
-			return m, tea.Quit
-		case tea.KeyEnter:
-			ExecCommand(m.commandString)
-		case tea.KeyBackspace:
-			last := len(m.commandString) - 1
-			if last >= 0 {
-				m.commandString = m.commandString[:last] // remove last char in commandString
-			}
-			if last == 0 {
-				m.commandString = ""
-			}
-		default:
-			m.commandString += msg.String()
-			// fmt.Println("> ", m.commandString)
-		}
-	case errMsg:
-		m.err = msg
+	case tea.WindowSizeMsg:
+		m.list.SetWidth(msg.Width)
 		return m, nil
-		// default:
-		// 	m.command += msg.String()
+
+	case tea.KeyMsg:
+		switch keypress := msg.String(); keypress {
+		case "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+
+		case "enter":
+			i, ok := m.list.SelectedItem().(item)
+			if ok {
+				m.choice = string(i)
+			}
+			return m, tea.Quit
+		}
 	}
 
-	m.command, cmd = m.command.Update(msg)
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
 	return m, cmd
 }
 
 func (m model) View() string {
-	s := "Relative"
-	cmd := exec.Command("pwd")
+	if m.choice != "" {
+		// return quitTextStyle.Render(fmt.Sprintf("%s? Sounds good to me.", m.choice))
+		if strings.Contains(m.choice, "/") {
+			fmt.Println("is a directory")
+		} else {
+			switch choice := strings.Split(m.choice, ".")[1]; choice {
+			case "go":
+				return quitTextStyle.Render("is a go file")
+				// fmt.Println("is a go file")
+			default:
+				return quitTextStyle.Render("unrecognized file type")
+				// fmt.Println("unrecognized file type")
+			}
+
+		}
+	}
+	if m.quitting {
+		return quitTextStyle.Render("bye")
+	}
+	return "\n" + m.list.View()
+}
+
+func main() {
+	cmd := exec.Command("ls", "-ap")
 	cmd.Stdin = strings.NewReader("")
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -102,17 +121,29 @@ func (m model) View() string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s += "\nPress Ctrl+q to quit.\n"
-	folderLocation := "Folder location current: " + out.String()
-	s += fmt.Sprintf("\n\n%s\n%s", folderLocation, m.command.View())
 
-	return s
-}
+	items := []list.Item{}
+	outArray := strings.Split(out.String(), "\n")
+	for i := 0; i < len(outArray); i++ {
+		if strings.Contains(outArray[i], "/") || strings.Contains(outArray[i], ".") {
+			items = append(items, item(outArray[i]))
+		}
+	}
 
-func main() {
-	p := tea.NewProgram(initialModel())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
+	const defaultWidth = 20
+
+	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
+	l.Title = "Relative"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = titleStyle
+	l.Styles.PaginationStyle = paginationStyle
+	l.Styles.HelpStyle = helpStyle
+
+	m := model{list: l}
+
+	if _, err := tea.NewProgram(m).Run(); err != nil {
+		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
 }

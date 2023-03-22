@@ -21,6 +21,7 @@ require (
 	github.com/muesli/termenv v0.14.0 // indirect
 	github.com/rivo/tview v0.0.0-20230226195229-47e7db7885b4 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
+	github.com/sahilm/fuzzy v0.1.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
