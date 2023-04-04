@@ -10,19 +10,32 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 const listHeight = 14
+const useHighPerformanceRenderer = false
 
 var (
-	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("FFFAE0")).Background(lipgloss.Color("002236"))
-	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+	titleStyle         = lipgloss.NewStyle().MarginLeft(2)
+	itemStyle          = lipgloss.NewStyle().PaddingLeft(4)
+	selectedItemStyle  = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("FFFAE0")).Background(lipgloss.Color("002236"))
+	paginationStyle    = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	helpStyle          = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	quitTextStyle      = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+	titleStyleViewport = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Right = "├"
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
+	}()
+
+	infoStyle = func() lipgloss.Style {
+		b := lipgloss.RoundedBorder()
+		b.Left = "┤"
+		return titleStyle.Copy().BorderStyle(b)
+	}()
 )
 
 type item string
@@ -57,6 +70,9 @@ type model struct {
 	list     list.Model
 	choice   string
 	quitting bool
+	content  string
+	ready    bool
+	viewport viewport.Model
 }
 
 func (m model) Init() tea.Cmd {
@@ -64,23 +80,106 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		teaCmd  tea.Cmd
+		teaCmds []tea.Cmd
+	)
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
-		return m, nil
+		headerHeight := lipgloss.Height(m.headerView(m.choice))
+		footerHeight := lipgloss.Height(m.footerView())
+		verticalMarginHeight := headerHeight + footerHeight
+
+		if !m.ready {
+			// Since this program is using the full size of the viewport we
+			// need to wait until we've received the window dimensions before
+			// we can initialize the viewport. The initial dimensions come in
+			// quickly, though asynchronously, which is why we wait for them
+			// here.
+			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+			m.viewport.YPosition = headerHeight
+			m.viewport.HighPerformanceRendering = useHighPerformanceRenderer
+			m.viewport.SetContent(m.content)
+			// m.ready = true
+
+			// This is only necessary for high performance rendering, which in
+			// most cases you won't need.
+			//
+			// Render the viewport one line below the header.
+			m.viewport.YPosition = headerHeight + 1
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - verticalMarginHeight
+		}
+
+		if useHighPerformanceRenderer {
+			// Render (or re-render) the whole viewport. Necessary both to
+			// initialize the viewport and when the window is resized.
+			//
+			// This is needed for high-performance rendering only.
+			teaCmds = append(teaCmds, viewport.Sync(m.viewport))
+		}
+		// return m, nil
+
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
-		case "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
+		case "ctrl+c", "q", "esc":
+			if !m.ready {
+				m.quitting = true
+				return m, tea.Quit
+			} else {
+				m.ready = false
+				// m.content = ""
+				return m, nil
+			}
 		case "v":
+			m.ready = true
 			i, ok := m.list.SelectedItem().(item)
 			if ok {
 				m.choice = string(i)
 			}
 			if !strings.Contains(m.choice, "/") {
-				str := "cat " + m.choice
-				cmd := exec.Command("bash", "-c", str)
+				// 		// str := "cat " + m.choice
+				// cmd := exec.Command("pwd")
+				// cmd.Stdin = strings.NewReader("")
+				// var out bytes.Buffer
+				// cmd.Stdout = &out
+				// err := cmd.Run()
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+				// fmt.Println(strings.Trim(out.String(), "\n") + "/" + m.choice)
+				// filePath := strings.Trim(out.String(), "\n") + "/" + m.choice
+				content, err := os.ReadFile(m.choice)
+				if err != nil {
+					fmt.Println("could not load file:", err)
+					// os.Exit(1)
+					m.content = string("could not load file:")
+				}
+				m.content = string(content)
+				fmt.Println(m.content)
+				// 		content, err := os.ReadFile(m.choice)
+				// 		if err != nil {
+				// 			fmt.Println("could not load file:", err)
+				// 			os.Exit(1)
+				// 		}
+
+				// 		p := tea.NewProgram(
+				// 			model{content: string(content)},
+				// 			tea.WithAltScreen(),       // use the full size of the terminal in its "alternate screen buffer"
+				// 			tea.WithMouseCellMotion(), // turn on mouse support so we can track the mouse wheel
+				// 		)
+
+				// 		if _, err := p.Run(); err != nil {
+				// 			fmt.Println("could not run program:", err)
+				// 			os.Exit(1)
+				// 		}
+			} else if m.choice != "../" {
+				os.Chdir(m.choice)
+
+				cmd := exec.Command("ls", "-ap")
 				cmd.Stdin = strings.NewReader("")
 				var out bytes.Buffer
 				cmd.Stdout = &out
@@ -88,8 +187,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Println(out.String())
+				// fmt.Println(out.String())
+				m.content = out.String()
+
+				os.Chdir("../")
+			} else {
+				m.ready = false
 			}
+			m.viewport.SetContent(m.content)
 		case "enter", " ":
 			i, ok := m.list.SelectedItem().(item)
 			if ok {
@@ -126,8 +231,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				l.Styles.Title = titleStyle
 				l.Styles.PaginationStyle = paginationStyle
 				l.Styles.HelpStyle = helpStyle
-				model := model{list: l}
-				m = model
+				// model := model{list: l}
+				m.list = l
 				// return "\n" + model.list.View()
 				// model.list.View()
 			} else {
@@ -150,10 +255,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
+	if m.ready {
+		m.viewport, teaCmd = m.viewport.Update(msg)
+		teaCmds = append(teaCmds, teaCmd)
 
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+		return m, tea.Batch(teaCmds...)
+	} else {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
 }
 
 func (m model) View() string {
@@ -214,10 +325,32 @@ func (m model) View() string {
 
 	// }
 	// }
+	if m.ready {
+		return fmt.Sprintf("%s\n%s\n%s", m.headerView(m.choice), m.viewport.View(), m.footerView())
+	}
 	if m.quitting {
 		return quitTextStyle.Render("bye")
 	}
 	return "\n" + m.list.View()
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func (m model) headerView(name string) string {
+	title := titleStyleViewport.Render(name)
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
+}
+
+func (m model) footerView() string {
+	info := infoStyle.Render(fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 }
 
 func main() {
@@ -250,7 +383,7 @@ func main() {
 
 	m := model{list: l}
 
-	if _, err := tea.NewProgram(m).Run(); err != nil {
+	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
