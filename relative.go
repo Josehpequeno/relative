@@ -159,7 +159,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.content = string("could not load file:")
 				}
 				m.content = string(content)
-				fmt.Println(m.content)
+				// fmt.Println(m.content)
 				// 		content, err := os.ReadFile(m.choice)
 				// 		if err != nil {
 				// 			fmt.Println("could not load file:", err)
@@ -239,15 +239,94 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				switch choice := strings.Split(m.choice, ".")[1]; choice {
 				case "go":
 					// return quitTextStyle.Render("is a go file")
-					fmt.Println("is a go file")
+					m.ready = true
+					str := "go run " + m.choice
+					cmd := exec.Command("bash", "-c", str)
+					cmd.Stdin = strings.NewReader("")
+					var out bytes.Buffer
+					cmd.Stdout = &out
+					err := cmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+					m.content = out.String()
+					m.viewport.SetContent(m.content)
 				case "js":
-					fmt.Println("is a javascript file")
+					m.ready = true
+					str := "node " + m.choice
+					cmd := exec.Command("bash", "-c", str)
+					cmd.Stdin = strings.NewReader("")
+					var out bytes.Buffer
+					cmd.Stdout = &out
+					err := cmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+					m.content = out.String()
+					m.viewport.SetContent(m.content)
 				case "ts":
-					fmt.Println("is a typescript file")
+					m.ready = true
+					str := "node " + m.choice
+					cmd := exec.Command("bash", "-c", str)
+					cmd.Stdin = strings.NewReader("")
+					var out bytes.Buffer
+					cmd.Stdout = &out
+					err := cmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+					m.content = out.String()
+					m.viewport.SetContent(m.content)
 				case "py":
-					fmt.Println("is a python file")
+					m.ready = true
+					str := "python " + m.choice
+					cmd := exec.Command("bash", "-c", str)
+					cmd.Stdin = strings.NewReader("")
+					var out bytes.Buffer
+					cmd.Stdout = &out
+					err := cmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+					m.content = out.String()
+					m.viewport.SetContent(m.content)
 				case "rs":
-					fmt.Println("is a rust file")
+					m.ready = true
+					str := "rustc " + m.choice
+					fmt.Println("str", str)
+					firstCmd := exec.Command("bash", "-c", str)
+
+					firstCmd.Stdin = strings.NewReader("")
+					var out bytes.Buffer
+					firstCmd.Stdout = &out
+					err := firstCmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+					str = "./" + strings.Split(m.choice, ".")[0]
+					secondCmd := exec.Command("bash", "-c", str)
+					secondCmd.Stdin = strings.NewReader("")
+					// var out bytes.Buffer
+					secondCmd.Stdout = &out
+					err = secondCmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+					fmt.Println("str", str)
+					// secondCmd = exec.Command("bash", "-c", str)
+					m.content = out.String()
+					m.viewport.SetContent(m.content)
+					str = "rm ./" + strings.Split(m.choice, ".")[0]
+					fmt.Println("str", str)
+					tertiaryCmd := exec.Command("bash", "-c", str)
+					tertiaryCmd.Stdin = strings.NewReader("")
+					// var out bytes.Buffer
+					tertiaryCmd.Stdout = &out
+					err = tertiaryCmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+					fmt.Println(out.String())
 				default:
 					// return quitTextStyle.Render("unrecognized file type")
 					fmt.Println("unrecognized file type")
