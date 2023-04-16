@@ -247,7 +247,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmd.Stdout = &out
 					err := cmd.Run()
 					if err != nil {
-						log.Fatal(err)
+						log.Fatal("error executing go file: ", err)
 					}
 					m.content = out.String()
 					m.viewport.SetContent(m.content)
@@ -260,7 +260,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmd.Stdout = &out
 					err := cmd.Run()
 					if err != nil {
-						log.Fatal(err)
+						log.Fatal("error executing javascript file: ", err)
 					}
 					m.content = out.String()
 					m.viewport.SetContent(m.content)
@@ -273,7 +273,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmd.Stdout = &out
 					err := cmd.Run()
 					if err != nil {
-						log.Fatal(err)
+						log.Fatal("error executing typescript file: ", err)
 					}
 					m.content = out.String()
 					m.viewport.SetContent(m.content)
@@ -286,7 +286,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmd.Stdout = &out
 					err := cmd.Run()
 					if err != nil {
-						log.Fatal(err)
+						log.Fatal("error executing python file: ", err)
 					}
 					m.content = out.String()
 					m.viewport.SetContent(m.content)
@@ -301,7 +301,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					firstCmd.Stdout = &out
 					err := firstCmd.Run()
 					if err != nil {
-						log.Fatal(err)
+						log.Fatal("error executing rust file: ", err)
 					}
 					str = "./" + strings.Split(m.choice, ".")[0]
 					secondCmd := exec.Command("bash", "-c", str)
@@ -310,7 +310,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					secondCmd.Stdout = &out
 					err = secondCmd.Run()
 					if err != nil {
-						log.Fatal(err)
+						log.Fatal("error executing rust file: ", err)
 					}
 					fmt.Println("str", str)
 					// secondCmd = exec.Command("bash", "-c", str)
@@ -324,7 +324,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					tertiaryCmd.Stdout = &out
 					err = tertiaryCmd.Run()
 					if err != nil {
-						log.Fatal(err)
+						log.Fatal("error executing rust file: ", err)
 					}
 					fmt.Println(out.String())
 				default:
