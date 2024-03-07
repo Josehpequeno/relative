@@ -1,6 +1,6 @@
-var http = require("http");
+let http = require("http");
 
-var server = http.createServer(function (req, res) {
+let server = http.createServer(function (req, res) {
   if (req.url == "/") {
     //check the URL of the current request
 

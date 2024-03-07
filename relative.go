@@ -279,7 +279,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.viewport.SetContent(m.content)
 				case "py":
 					m.ready = true
-					str := "python " + m.choice
+					str := "python3 " + m.choice
 					cmd := exec.Command("bash", "-c", str)
 					cmd.Stdin = strings.NewReader("")
 					var out bytes.Buffer

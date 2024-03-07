@@ -1,0 +1,6 @@
+Package: relative
+Version: 1.0
+Architecture: amd64
+Maintainer: Josehpequeno <hicarojbs21@gmail.com>
+Description: Universal flat file executor.
+
